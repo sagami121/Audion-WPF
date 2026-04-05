@@ -88,10 +88,12 @@ namespace Audion_WPF
 
         private void SetAccentGradient(string startColor, string endColor)
         {
-            Resources["AccentGradient"] = new LinearGradientBrush(
-                ParseColor(startColor),
-                ParseColor(endColor),
-                45);
+            var stops = new GradientStopCollection
+            {
+                new GradientStop(ParseColor(startColor), 0),
+                new GradientStop(ParseColor(endColor), 1)
+            };
+            Resources["AccentGradient"] = new LinearGradientBrush(stops, 45);
         }
 
         private static Color ParseColor(string colorValue)

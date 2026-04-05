@@ -42,6 +42,7 @@ namespace Audion_WPF
         private AudioFileReader _audioFile;
         private bool _isInternalSelectionChange;
         private bool _isRestoringSession;
+        private bool _isUpdatingUi;
         private string _currentFilePath;
         private AppSettings _settings;
 
@@ -136,16 +137,24 @@ namespace Audion_WPF
 
         private void ApplySettingsToUi()
         {
-            ((App)Application.Current).ApplyTheme(_settings.Theme);
-            Topmost = _settings.AlwaysOnTop;
-            sidebarColumn.Width = new GridLength(_settings.SidebarWidth);
-            volumeSlider.Value = _settings.Volume;
-            speedSlider.Value = _settings.Speed;
-            UpdateMuteUi();
-            UpdateRepeatUi();
-            UpdateShuffleUi();
-            ApplyWindowChromeTheme();
-            ResetNowPlayingText();
+            _isUpdatingUi = true;
+            try
+            {
+                ((App)Application.Current).ApplyTheme(_settings.Theme);
+                Topmost = _settings.AlwaysOnTop;
+                sidebarColumn.Width = new GridLength(_settings.SidebarWidth);
+                volumeSlider.Value = _settings.Volume;
+                speedSlider.Value = _settings.Speed;
+                UpdateMuteUi();
+                UpdateRepeatUi();
+                UpdateShuffleUi();
+                ApplyWindowChromeTheme();
+                ResetNowPlayingText();
+            }
+            finally
+            {
+                _isUpdatingUi = false;
+            }
         }
 
         private void ApplyTranslations()
@@ -517,22 +526,30 @@ namespace Audion_WPF
                 return;
             }
 
-            StopAudio(false);
+            try
+            {
+                StopAudio(false);
 
-            _audioFile = new AudioFileReader(track.FilePath);
-            _audioFile.Volume = _settings.Muted ? 0f : (float)(volumeSlider.Value / 100d);
-            _outputDevice = new WaveOutEvent();
-            _outputDevice.Init(_audioFile);
-            _outputDevice.PlaybackStopped += OutputDevice_PlaybackStopped;
-            _currentFilePath = track.FilePath;
+                _audioFile = new AudioFileReader(track.FilePath);
+                _audioFile.Volume = _settings.Muted ? 0f : (float)(volumeSlider.Value / 100d);
+                _outputDevice = new WaveOutEvent();
+                _outputDevice.Init(_audioFile);
+                _outputDevice.PlaybackStopped += OutputDevice_PlaybackStopped;
+                _currentFilePath = track.FilePath;
 
-            txtTrackName.Text = track.Title;
-            txtArtistName.Text = track.DisplaySubtitle;
-            txtTotalTime.Text = _audioFile.TotalTime.ToString(@"m\:ss");
-            seekSlider.Maximum = Math.Max(1, _audioFile.TotalTime.TotalSeconds);
-            seekSlider.Value = 0;
-            ApplyAlbumArt(track);
-            PlayAudio();
+                txtTrackName.Text = track.Title;
+                txtArtistName.Text = track.DisplaySubtitle;
+                txtTotalTime.Text = _audioFile.TotalTime.ToString(@"m\:ss");
+                seekSlider.Maximum = Math.Max(1, _audioFile.TotalTime.TotalSeconds);
+                seekSlider.Value = 0;
+                ApplyAlbumArt(track);
+                PlayAudio();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to load audio: " + ex.Message, "Audion", MessageBoxButton.OK, MessageBoxImage.Error);
+                StopAudio(true);
+            }
         }
 
         private void ApplyAlbumArt(AudioTrack track)
@@ -596,6 +613,8 @@ namespace Audion_WPF
 
         private void StopAudio(bool resetPosition)
         {
+            _timer.Stop();
+
             if (_outputDevice != null)
             {
                 _outputDevice.PlaybackStopped -= OutputDevice_PlaybackStopped;
@@ -611,7 +630,6 @@ namespace Audion_WPF
             }
 
             _currentFilePath = null;
-            _timer.Stop();
             AlbumArtRotateTransform.BeginAnimation(System.Windows.Media.RotateTransform.AngleProperty, null);
             SetPlayGlyph("\u25B6");
 
@@ -757,7 +775,7 @@ namespace Audion_WPF
                 txtVolume.Text = ((int)Math.Round(e.NewValue)).ToString() + "%";
             }
 
-            if (_settings == null)
+            if (_settings == null || _isUpdatingUi)
             {
                 return;
             }
@@ -774,7 +792,7 @@ namespace Audion_WPF
                 txtSpeed.Text = e.NewValue.ToString("0.0") + "x";
             }
 
-            if (_settings == null)
+            if (_settings == null || _isUpdatingUi)
             {
                 return;
             }
@@ -863,7 +881,6 @@ namespace Audion_WPF
 
         private void UpdatePlaylistUi()
         {
-            txtPlaylistCount.Text = _playlist.Count.ToString() + " 曲";
             txtPlaylistCount.Text = _playlist.Count.ToString() + T("tracks_suffix");
             dropHint.Visibility = _playlist.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }

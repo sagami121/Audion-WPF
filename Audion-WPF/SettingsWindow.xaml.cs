@@ -107,12 +107,19 @@ namespace Audion_WPF
 
         private void Window_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            DialogResult = false;
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                DialogResult = false;
+            }
         }
 
         private void CardBorder_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            DialogResult = false;
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                DragMove();
+            }
+            e.Handled = true;
         }
 
         private void BeginOpenAnimation()
